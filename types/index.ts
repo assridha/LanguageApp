@@ -1,6 +1,18 @@
 export type DutchArticle = "de" | "het";
 export type DutchGender = "masculine" | "feminine" | "neuter";
 
+export type PartOfSpeech =
+  | "noun"
+  | "verb"
+  | "adjective"
+  | "adverb"
+  | "pronoun"
+  | "preposition"
+  | "conjunction"
+  | "interjection"
+  | "phrase"
+  | "other";
+
 export type QuestionType =
   | "imageToWord"
   | "definitionToWord"
@@ -39,6 +51,7 @@ export interface FlashcardDTO {
   englishWord?: string | null;
   article?: DutchArticle | null;
   gender?: DutchGender | null;
+  partOfSpeech?: PartOfSpeech | null;
   exampleSentences: ExampleSentence[];
   imageUrl?: string;
   imageAlt?: string;

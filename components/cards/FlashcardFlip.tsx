@@ -3,10 +3,12 @@
 import { useState } from "react";
 import type { FlashcardDTO } from "@/types";
 import { DutchWordHeading } from "@/components/cards/GenderBadge";
+import { PartOfSpeechBadge } from "@/components/cards/PartOfSpeechBadge";
 import {
   primaryEnglish,
   secondaryEnglishDefinition,
 } from "@/lib/card-display";
+import { formatPartOfSpeech } from "@/lib/part-of-speech";
 
 interface FlashcardFlipProps {
   card: FlashcardDTO;
@@ -60,8 +62,18 @@ export function FlashcardFlip({ card }: FlashcardFlipProps) {
         <div className="flashcard-face flashcard-back">
           <p className="text-sm uppercase tracking-wide text-orange-700">English</p>
           <p className="mt-2 text-3xl font-semibold text-stone-900">{english}</p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <PartOfSpeechBadge partOfSpeech={card.partOfSpeech} />
+          </div>
           {definition && (
-            <p className="mt-3 text-sm text-stone-600">{definition}</p>
+            <p className="mt-3 text-sm text-stone-600">
+              {card.partOfSpeech && (
+                <span className="font-medium text-stone-700">
+                  {formatPartOfSpeech(card.partOfSpeech)}:{" "}
+                </span>
+              )}
+              {definition}
+            </p>
           )}
           <ul className="mt-4 w-full space-y-2 text-left text-sm">
             {card.exampleSentences.slice(0, 2).map((s, i) => (

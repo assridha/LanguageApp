@@ -114,6 +114,16 @@ export async function bulkCreateCards(body: {
   });
 }
 
+export async function generateCardsByTheme(body: {
+  theme: string;
+  count?: number;
+}) {
+  return apiFetch<BulkCreateResult>("/api/v1/cards/generate-by-theme", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function patchCard(
   id: string,
   body: Record<string, unknown>,

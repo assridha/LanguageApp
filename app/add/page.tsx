@@ -11,6 +11,7 @@ import {
   ApiError,
   bulkCreateCards,
   createCard,
+  generateCardsByTheme,
   type BulkCreateResult,
 } from "@/lib/api-client";
 import { parseWordList, spellCheckLang, type InputLanguage } from "@/lib/word-input";
@@ -25,6 +26,12 @@ export default function AddWordPage() {
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [existingCardId, setExistingCardId] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkCreateResult | null>(null);
+  const [themeInput, setThemeInput] = useState("");
+  const [loadingTheme, setLoadingTheme] = useState(false);
+  const [themeError, setThemeError] = useState<string | null>(null);
+  const [themeBulkResult, setThemeBulkResult] = useState<BulkCreateResult | null>(
+    null,
+  );
 
   const words = useMemo(() => parseWordList(wordInput), [wordInput]);
   const isMultiple = words.length > 1;
@@ -46,6 +53,35 @@ export default function AddWordPage() {
       setWordInput(suggestion);
     }
     resetFeedback();
+  }
+
+  function resetThemeFeedback() {
+    setThemeError(null);
+    setThemeBulkResult(null);
+  }
+
+  async function handleThemeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const theme = themeInput.trim();
+    if (!theme) return;
+
+    setLoadingTheme(true);
+    resetThemeFeedback();
+
+    try {
+      const { data } = await generateCardsByTheme({ theme, count: 10 });
+      setThemeBulkResult(data);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setThemeError(err.message);
+      } else {
+        setThemeError(
+          err instanceof Error ? err.message : "Failed to generate flashcards",
+        );
+      }
+    } finally {
+      setLoadingTheme(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -185,6 +221,51 @@ export default function AddWordPage() {
           {isMultiple
             ? `Generate ${words.length} flashcards`
             : "Generate flashcard"}
+        </Button>
+      </form>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center" aria-hidden="true">
+          <div className="w-full border-t border-stone-200" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-stone-50 px-3 text-sm text-stone-500">or</span>
+        </div>
+      </div>
+
+      <form onSubmit={handleThemeSubmit} className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-stone-900">
+            Generate from theme
+          </h2>
+          <p className="mt-1 text-sm text-stone-600">
+            Enter a topic or setting and we will add 10 new Dutch words not
+            already in your deck. This may take about 30–60 seconds.
+          </p>
+        </div>
+
+        <Input
+          label="Theme"
+          value={themeInput}
+          onChange={(e) => {
+            setThemeInput(e.target.value);
+            resetThemeFeedback();
+          }}
+          placeholder='e.g. school, health, words spoken at supermarket'
+          disabled={loadingTheme}
+          required
+        />
+
+        {themeError && (
+          <div className="rounded-xl bg-red-50 p-4 text-sm text-red-800">
+            <p>{themeError}</p>
+          </div>
+        )}
+
+        {themeBulkResult && <BulkResultSummary result={themeBulkResult} />}
+
+        <Button type="submit" loading={loadingTheme} className="w-full">
+          Generate 10 flashcards from theme
         </Button>
       </form>
     </div>

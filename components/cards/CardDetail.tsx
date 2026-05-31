@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import type { FlashcardDTO } from "@/types";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input, Textarea } from "@/components/ui/Input";
 import { DutchWordHeading, GenderBadge } from "@/components/cards/GenderBadge";
+import { PartOfSpeechBadge } from "@/components/cards/PartOfSpeechBadge";
 import { primaryEnglish, secondaryEnglishDefinition } from "@/lib/card-display";
+import { textContainsWord } from "@/lib/definition-quality";
+import { formatPartOfSpeech } from "@/lib/part-of-speech";
 import { showFocusBadge } from "@/lib/focus";
 import { MasteryBadge } from "@/components/focus/MasteryBadge";
 
@@ -14,8 +17,10 @@ interface CardDetailProps {
   onPinToggle?: () => void;
   onDelete?: () => void;
   onImageUpdate?: (imageUrl: string | null) => Promise<void>;
+  onDefinitionUpdate?: (englishDefinition: string) => Promise<void>;
   pinning?: boolean;
   savingImage?: boolean;
+  savingDefinition?: boolean;
 }
 
 export function CardDetail({
@@ -23,11 +28,15 @@ export function CardDetail({
   onPinToggle,
   onDelete,
   onImageUpdate,
+  onDefinitionUpdate,
   pinning,
   savingImage,
+  savingDefinition,
 }: CardDetailProps) {
   const [imageUrlInput, setImageUrlInput] = useState(card.imageUrl ?? "");
+  const [definitionInput, setDefinitionInput] = useState(card.englishDefinition);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [definitionError, setDefinitionError] = useState<string | null>(null);
   const [previewBroken, setPreviewBroken] = useState(false);
 
   useEffect(() => {
@@ -35,6 +44,11 @@ export function CardDetail({
     setImageError(null);
     setPreviewBroken(false);
   }, [card.imageUrl, card.id]);
+
+  useEffect(() => {
+    setDefinitionInput(card.englishDefinition);
+    setDefinitionError(null);
+  }, [card.englishDefinition, card.id]);
 
   async function handleSaveImage(e: React.FormEvent) {
     e.preventDefault();
@@ -63,6 +77,26 @@ export function CardDetail({
     await onImageUpdate(null);
   }
 
+  async function handleSaveDefinition(e: React.FormEvent) {
+    e.preventDefault();
+    if (!onDefinitionUpdate) return;
+
+    const trimmed = definitionInput.trim();
+    if (!trimmed) {
+      setDefinitionError("Definition cannot be empty.");
+      return;
+    }
+    if (textContainsWord(trimmed, card.dutchWord)) {
+      setDefinitionError(
+        "Definition must not include the Dutch word. Use the English translation instead.",
+      );
+      return;
+    }
+
+    setDefinitionError(null);
+    await onDefinitionUpdate(trimmed);
+  }
+
   const previewUrl = imageUrlInput.trim() || card.imageUrl;
   const definition = secondaryEnglishDefinition(card);
   const inFocus = showFocusBadge(card);
@@ -78,6 +112,7 @@ export function CardDetail({
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <GenderBadge article={card.article} gender={card.gender} size="md" />
+            <PartOfSpeechBadge partOfSpeech={card.partOfSpeech} size="md" />
             {inFocus && (
               <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">
                 Focus
@@ -88,11 +123,50 @@ export function CardDetail({
             {primaryEnglish(card)}
           </p>
           {definition && (
-            <p className="mt-1 text-stone-600">{definition}</p>
+            <p className="mt-1 text-stone-600">
+              {card.partOfSpeech && (
+                <span className="font-medium text-stone-700">
+                  {formatPartOfSpeech(card.partOfSpeech)}:{" "}
+                </span>
+              )}
+              {definition}
+            </p>
           )}
         </div>
         <MasteryBadge score={card.stats.masteryScore} size="md" />
       </div>
+
+      {onDefinitionUpdate && (
+        <section className="space-y-4">
+          <h2 className="font-semibold text-stone-800">Definition</h2>
+          <form onSubmit={handleSaveDefinition} className="space-y-3">
+            <Textarea
+              label="English definition"
+              value={definitionInput}
+              onChange={(e) => {
+                setDefinitionInput(e.target.value);
+                setDefinitionError(null);
+              }}
+              placeholder="A short explanation of what this word means"
+              disabled={savingDefinition}
+              required
+            />
+            {definitionError && (
+              <p className="text-sm text-red-600">{definitionError}</p>
+            )}
+            <Button
+              type="submit"
+              loading={savingDefinition}
+              disabled={
+                savingDefinition ||
+                definitionInput.trim() === card.englishDefinition.trim()
+              }
+            >
+              Save definition
+            </Button>
+          </form>
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="font-semibold text-stone-800">Image</h2>

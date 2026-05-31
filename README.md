@@ -89,6 +89,26 @@ curl -X POST http://localhost:3000/api/v1/cards/backfill-gender \
   -d '{}'
 ```
 
+### Backfill part of speech for existing cards
+
+```bash
+npm run backfill-part-of-speech
+```
+
+Use `--force` to refresh metadata on all cards:
+
+```bash
+npx tsx scripts/backfill-part-of-speech.ts --force
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/cards/backfill-part-of-speech \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 ## Test modes
 
 | Mode | Description |

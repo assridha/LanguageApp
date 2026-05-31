@@ -9,7 +9,9 @@
     "lint": "eslint",
     "import-words": "tsx scripts/import-words.ts",
     "backfill-gender": "tsx --env-file=.env.local scripts/backfill-gender.ts",
-    "backfill-english-words": "tsx --env-file=.env.local scripts/backfill-english-words.ts"
+    "backfill-english-words": "tsx --env-file=.env.local scripts/backfill-english-words.ts",
+    "backfill-part-of-speech": "tsx --env-file=.env.local scripts/backfill-part-of-speech.ts",
+    "backfill-definitions": "tsx --env-file=.env.local scripts/backfill-definitions.ts"
   },
   "dependencies": {
     "mongoose": "^9.6.3",

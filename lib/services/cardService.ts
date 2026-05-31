@@ -13,14 +13,33 @@ import {
 import { showFocusBadge } from "@/lib/focus";
 import { DuplicateWordError, WordValidationError } from "@/lib/errors";
 import {
+  fetchCleanEnglishDefinition,
   fetchEnglishWordMetadata,
   fetchGenderMetadata,
+  fetchPartOfSpeechMetadata,
   isGenerationComplete,
   validateAndGenerateCard,
 } from "@/lib/openai";
 import { normalizeArticleAndGender } from "@/lib/gender";
+import {
+  isDefinitionSafeForTesting,
+  sanitizeDefinitionForPrompt,
+  textContainsWord,
+} from "@/lib/definition-quality";
+import { partOfSpeechSchema } from "@/lib/part-of-speech";
 import type { InputLanguage } from "@/lib/word-input";
-import type { CardStats, DutchArticle, DutchGender, FlashcardDTO, QuestionType } from "@/types";
+import {
+  loadExistingDutchWordSet,
+  selectNovelThemeWords,
+} from "@/lib/theme-words";
+import type {
+  CardStats,
+  DutchArticle,
+  DutchGender,
+  FlashcardDTO,
+  PartOfSpeech,
+  QuestionType,
+} from "@/types";
 
 const inputLanguageSchema = z.enum(["dutch", "english"]);
 
@@ -43,6 +62,7 @@ const createCardBaseSchema = z.object({
   imageAlt: z.string().optional(),
   article: z.enum(["de", "het"]).nullable().optional(),
   gender: z.enum(["masculine", "feminine", "neuter"]).nullable().optional(),
+  partOfSpeech: partOfSpeechSchema.nullable().optional(),
 });
 
 export const createCardSchema = createCardBaseSchema.superRefine((data, ctx) => {
@@ -97,6 +117,7 @@ export const patchCardSchema = z.object({
   imageCredit: z.string().nullable().optional(),
   article: z.enum(["de", "het"]).nullable().optional(),
   gender: z.enum(["masculine", "feminine", "neuter"]).nullable().optional(),
+  partOfSpeech: partOfSpeechSchema.nullable().optional(),
   userPinned: z.boolean().optional(),
   focusDismissed: z.boolean().optional(),
   markKnown: z.boolean().optional(),
@@ -107,6 +128,11 @@ export const bulkMutationSchema = z.object({
   ids: z.array(z.string()).optional(),
   dutchWords: z.array(z.string()).optional(),
   patch: patchCardSchema.optional(),
+});
+
+export const generateByThemeSchema = z.object({
+  theme: z.string().trim().min(2).max(200),
+  count: z.number().min(1).max(10).default(10),
 });
 
 function toStatsFromDoc(doc: FlashcardDocument): CardStats {
@@ -121,6 +147,7 @@ function toDTO(doc: FlashcardDocument): FlashcardDTO {
     englishDefinition: doc.englishDefinition,
     article: (doc.article as DutchArticle | null | undefined) ?? null,
     gender: (doc.gender as DutchGender | null | undefined) ?? null,
+    partOfSpeech: (doc.partOfSpeech as PartOfSpeech | null | undefined) ?? null,
     exampleSentences: doc.exampleSentences.map((s) => ({
       dutch: s.dutch,
       english: s.english,
@@ -255,6 +282,7 @@ async function buildCardFields(input: z.infer<typeof createCardSchema>) {
   let exampleSentences = input.exampleSentences ?? [];
   let article: DutchArticle | null = input.article ?? null;
   let gender: DutchGender | null = input.gender ?? null;
+  let partOfSpeech: PartOfSpeech | null = input.partOfSpeech ?? null;
   const imageUrl = input.imageUrl;
   let imageAlt = input.imageAlt;
 
@@ -266,6 +294,7 @@ async function buildCardFields(input: z.infer<typeof createCardSchema>) {
     exampleSentences = generated.exampleSentences;
     article = generated.article;
     gender = generated.gender;
+    partOfSpeech = generated.partOfSpeech;
   } else if (!dutchWord) {
     dutchWord = word.trim().toLowerCase();
   }
@@ -283,6 +312,7 @@ async function buildCardFields(input: z.infer<typeof createCardSchema>) {
     exampleSentences,
     article,
     gender,
+    partOfSpeech,
     imageUrl,
     imageAlt,
   };
@@ -549,6 +579,29 @@ export async function bulkCreateCards(body: z.infer<typeof bulkCreateSchema>) {
   };
 }
 
+export async function generateCardsByTheme(
+  body: z.infer<typeof generateByThemeSchema>,
+) {
+  const { theme, count } = generateByThemeSchema.parse(body);
+  const excludeSet = await loadExistingDutchWordSet();
+  const selectedWords = await selectNovelThemeWords(theme, excludeSet, count);
+
+  const result = await bulkCreateCards({
+    words: selectedWords,
+    options: bulkOptionsSchema.parse({ inputLanguage: "dutch" }),
+  });
+
+  return {
+    ...result,
+    meta: {
+      ...result.meta,
+      theme,
+      requestedCount: count,
+      selectedWords,
+    },
+  };
+}
+
 export async function updateCard(
   id: string,
   patch: z.infer<typeof patchCardSchema>,
@@ -565,7 +618,16 @@ export async function updateCard(
     doc.englishWord = patch.englishWord;
   }
   if (patch.englishDefinition !== undefined) {
-    doc.englishDefinition = patch.englishDefinition;
+    const trimmed = patch.englishDefinition.trim();
+    if (!trimmed) {
+      throw new Error("Validation: englishDefinition cannot be empty");
+    }
+    if (textContainsWord(trimmed, doc.dutchWord)) {
+      throw new Error(
+        "Validation: definition must not include the Dutch word. Use the English translation instead.",
+      );
+    }
+    doc.englishDefinition = trimmed;
   }
   if (patch.exampleSentences !== undefined) {
     doc.set("exampleSentences", patch.exampleSentences);
@@ -591,6 +653,9 @@ export async function updateCard(
     });
     doc.article = normalized.article ?? undefined;
     doc.gender = normalized.gender ?? undefined;
+  }
+  if (patch.partOfSpeech !== undefined) {
+    doc.partOfSpeech = patch.partOfSpeech ?? undefined;
   }
   if (patch.userPinned !== undefined) doc.userPinned = patch.userPinned;
   if (patch.focusDismissed !== undefined) {
@@ -837,6 +902,118 @@ export async function backfillEnglishWords(options?: {
 
   return {
     processed: docs.length,
+    updated: updated.length,
+    failed,
+    updatedWords: updated,
+  };
+}
+
+export async function backfillPartOfSpeech(options?: {
+  concurrency?: number;
+  force?: boolean;
+}) {
+  await connectDB();
+  const concurrency = options?.concurrency ?? 3;
+  const limit = pLimit(concurrency);
+
+  const filter = options?.force
+    ? {}
+    : {
+        $or: [{ partOfSpeech: { $exists: false } }, { partOfSpeech: null }],
+      };
+
+  const docs = await Flashcard.find(filter);
+  const updated: string[] = [];
+  const failed: Array<{ dutchWord: string; error: string }> = [];
+
+  await Promise.all(
+    docs.map((doc) =>
+      limit(async () => {
+        try {
+          const partOfSpeech = await fetchPartOfSpeechMetadata(
+            doc.dutchWord,
+            doc.englishWord?.trim() || doc.englishDefinition,
+          );
+          doc.partOfSpeech = partOfSpeech;
+          await doc.save();
+          updated.push(doc.dutchWord);
+        } catch (err) {
+          failed.push({
+            dutchWord: doc.dutchWord,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }),
+    ),
+  );
+
+  return {
+    processed: docs.length,
+    updated: updated.length,
+    failed,
+    updatedWords: updated,
+  };
+}
+
+export async function backfillDefinitions(options?: {
+  concurrency?: number;
+  force?: boolean;
+}) {
+  await connectDB();
+  const concurrency = options?.concurrency ?? 3;
+  const limit = pLimit(concurrency);
+
+  const docs = await Flashcard.find({});
+  const targets = options?.force
+    ? docs
+    : docs.filter(
+        (doc) => !isDefinitionSafeForTesting(doc.englishDefinition, doc.dutchWord),
+      );
+
+  const updated: string[] = [];
+  const failed: Array<{ dutchWord: string; error: string }> = [];
+
+  await Promise.all(
+    targets.map((doc) =>
+      limit(async () => {
+        try {
+          const englishWord =
+            doc.englishWord?.trim() || doc.englishDefinition.trim();
+          let englishDefinition = doc.englishDefinition;
+
+          if (!isDefinitionSafeForTesting(englishDefinition, doc.dutchWord)) {
+            englishDefinition = await fetchCleanEnglishDefinition(
+              doc.dutchWord,
+              englishWord,
+              englishDefinition,
+            );
+          }
+
+          if (!isDefinitionSafeForTesting(englishDefinition, doc.dutchWord)) {
+            englishDefinition = sanitizeDefinitionForPrompt(
+              englishDefinition,
+              doc.dutchWord,
+              englishWord,
+            );
+          }
+
+          if (englishDefinition !== doc.englishDefinition) {
+            doc.englishDefinition = englishDefinition;
+            await doc.save();
+            updated.push(doc.dutchWord);
+          }
+        } catch (err) {
+          failed.push({
+            dutchWord: doc.dutchWord,
+            error: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
+      }),
+    ),
+  );
+
+  return {
+    processed: targets.length,
     updated: updated.length,
     failed,
     updatedWords: updated,

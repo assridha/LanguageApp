@@ -36,6 +36,37 @@ curl -X POST http://localhost:3000/api/v1/cards/bulk \
   }'
 ```
 
+## Generate flashcards by theme
+
+Picks novel Dutch words for a free-text theme (excluding words already in the deck), then creates flashcards with AI-generated definitions and examples.
+
+```bash
+curl -X POST http://localhost:3000/api/v1/cards/generate-by-theme \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AGENT_API_KEY" \
+  -d '{
+    "theme": "words spoken at supermarket",
+    "count": 10
+  }'
+```
+
+Request body:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `theme` | string | required | Topic or setting (2–200 chars), e.g. `school`, `health` |
+| `count` | number | `10` | Number of new words to add (1–10) |
+
+Response: same shape as bulk import (`created`, `skipped`, `failed`) plus `meta.theme`, `meta.requestedCount`, and `meta.selectedWords`.
+
+Errors:
+
+| Code | Status | When |
+|------|--------|------|
+| `INSUFFICIENT_THEME_WORDS` | 422 | Fewer than `count` novel words found after retries |
+| `VALIDATION_ERROR` | 400 | Invalid theme or count |
+| `UNKNOWN_WORD` | 422 | A generated word failed validation during card creation |
+
 ## Create one card with manual content
 
 ```bash

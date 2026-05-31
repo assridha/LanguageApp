@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { DuplicateWordError, WordValidationError } from "@/lib/errors";
+import {
+  DuplicateWordError,
+  InsufficientThemeWordsError,
+  WordValidationError,
+} from "@/lib/errors";
 
 export interface ApiErrorBody {
   code: string;
@@ -45,6 +49,14 @@ export function handleRouteError(err: unknown): NextResponse {
     return error("UNKNOWN_WORD", err.message, 422, {
       word: err.word,
       suggestion: err.suggestion,
+    });
+  }
+
+  if (err instanceof InsufficientThemeWordsError) {
+    return error("INSUFFICIENT_THEME_WORDS", err.message, 422, {
+      theme: err.theme,
+      requestedCount: err.requestedCount,
+      foundCount: err.foundCount,
     });
   }
 

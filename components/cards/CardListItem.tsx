@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { FlashcardDTO } from "@/types";
 import { GenderBadge } from "@/components/cards/GenderBadge";
+import { PartOfSpeechBadge } from "@/components/cards/PartOfSpeechBadge";
 import { primaryEnglish } from "@/lib/card-display";
 import { showFocusBadge } from "@/lib/focus";
 import { MasteryBadge } from "@/components/focus/MasteryBadge";
@@ -30,6 +31,7 @@ export function CardListItem({ card, onDelete }: CardListItemProps) {
             {card.article ? `${card.article} ${card.dutchWord}` : card.dutchWord}
           </span>
           <GenderBadge article={card.article} gender={card.gender} />
+          <PartOfSpeechBadge partOfSpeech={card.partOfSpeech} />
           {showFocusBadge(card) && (
             <span className="rounded bg-orange-100 px-1.5 py-0.5 text-xs text-orange-700">
               Focus

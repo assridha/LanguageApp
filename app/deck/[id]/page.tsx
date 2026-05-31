@@ -19,6 +19,7 @@ export default function CardDetailPage() {
   const [loading, setLoading] = useState(true);
   const [pinning, setPinning] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [savingDefinition, setSavingDefinition] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,6 +64,20 @@ export default function CardDetailPage() {
     }
   }
 
+  async function handleDefinitionUpdate(englishDefinition: string) {
+    if (!card) return;
+    setSavingDefinition(true);
+    setError(null);
+    try {
+      const { data } = await patchCard(card.id, { englishDefinition });
+      setCard(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update definition");
+    } finally {
+      setSavingDefinition(false);
+    }
+  }
+
   async function handleDelete() {
     if (!card || !confirm("Delete this card?")) return;
     await deleteCard(card.id);
@@ -95,8 +110,10 @@ export default function CardDetailPage() {
         onPinToggle={handlePinToggle}
         onDelete={handleDelete}
         onImageUpdate={handleImageUpdate}
+        onDefinitionUpdate={handleDefinitionUpdate}
         pinning={pinning}
         savingImage={savingImage}
+        savingDefinition={savingDefinition}
       />
     </div>
   );

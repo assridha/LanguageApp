@@ -20,3 +20,15 @@ export class DuplicateWordError extends Error {
     this.name = "DuplicateWordError";
   }
 }
+
+export class InsufficientThemeWordsError extends Error {
+  constructor(
+    message: string,
+    public theme: string,
+    public requestedCount: number,
+    public foundCount: number,
+  ) {
+    super(message);
+    this.name = "InsufficientThemeWordsError";
+  }
+}

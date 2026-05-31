@@ -1,4 +1,8 @@
 import type { FlashcardDTO } from "@/types";
+import {
+  isDefinitionSafeForTesting,
+  sanitizeDefinitionForPrompt,
+} from "@/lib/definition-quality";
 
 export function primaryEnglish(card: {
   englishWord?: string | null;
@@ -6,15 +10,32 @@ export function primaryEnglish(card: {
 }): string {
   const word = card.englishWord?.trim();
   if (word) return word;
-  return card.englishDefinition.trim();
+  return sanitizeStoredDefinition(card);
+}
+
+function sanitizeStoredDefinition(card: {
+  dutchWord?: string;
+  englishWord?: string | null;
+  englishDefinition: string;
+}): string {
+  const definition = card.englishDefinition.trim();
+  if (!card.dutchWord || isDefinitionSafeForTesting(definition, card.dutchWord)) {
+    return definition;
+  }
+  return sanitizeDefinitionForPrompt(
+    definition,
+    card.dutchWord,
+    card.englishWord,
+  );
 }
 
 export function secondaryEnglishDefinition(card: {
+  dutchWord?: string;
   englishWord?: string | null;
   englishDefinition: string;
 }): string | null {
   const word = card.englishWord?.trim();
-  const definition = card.englishDefinition.trim();
+  const definition = sanitizeStoredDefinition(card);
   if (!word || !definition) return null;
 
   const wordLower = word.toLowerCase();
@@ -31,7 +52,11 @@ export function secondaryEnglishDefinition(card: {
 
 export function englishForDefinitionPrompt(card: FlashcardDTO): string {
   const secondary = secondaryEnglishDefinition(card);
-  return secondary ?? primaryEnglish(card);
+  const raw = secondary ?? primaryEnglish(card);
+  if (isDefinitionSafeForTesting(raw, card.dutchWord)) {
+    return raw;
+  }
+  return sanitizeDefinitionForPrompt(raw, card.dutchWord, card.englishWord);
 }
 
 export function englishForWordToDefinitionAnswer(card: FlashcardDTO): string {
