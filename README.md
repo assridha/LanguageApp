@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dutch Flashcards
 
-## Getting Started
+English → Dutch language learning app with AI-generated flashcards, practice mode, and adaptive testing.
 
-First, run the development server:
+## Features
+
+- Add Dutch words — auto-generates English definitions and example sentences, with optional user-provided image URL
+- Practice mode with flip cards
+- Adaptive test mode prioritizing focus words (weak, new, stale, pinned)
+- Agent-friendly REST API with bulk import
+- Responsive UI for desktop and mobile
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. MongoDB Atlas
+
+1. Create a free cluster at [MongoDB Atlas](https://www.mongodb.com/atlas)
+2. Create a database user and allow network access
+3. Copy the connection string
+
+### 3. Environment variables
+
+Copy `.env.example` to `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Required:
+
+- `MONGODB_URI` — Atlas connection string
+- `OPENAI_API_KEY` — for generating definitions and examples
+
+Optional:
+
+- `AGENT_API_KEY` — protects API writes from external clients when deployed
+
+### 4. Run the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+See [docs/API.md](docs/API.md) for agent usage and curl examples.
 
-## Learn More
+OpenAPI spec: `GET /api/openapi.json`
 
-To learn more about Next.js, take a look at the following resources:
+### Bulk import example
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+curl -X POST http://localhost:3000/api/v1/cards/bulk \
+  -H "Content-Type: application/json" \
+  -d '{"words":["hond","kat","huis"]}'
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Import from file
 
-## Deploy on Vercel
+```bash
+npx tsx scripts/import-words.ts words.txt
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Backfill de/het and gender for existing cards
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run backfill-gender
+```
+
+Use `--force` to refresh metadata on all cards:
+
+```bash
+npx tsx scripts/backfill-gender.ts --force
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/cards/backfill-gender \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+## Test modes
+
+| Mode | Description |
+|------|-------------|
+| Focus (default) | 70% high-priority words, 30% review |
+| Weak only | Low mastery or recently missed |
+| New only | Never tested |
+| Full | Random from entire deck |
+
+## Tech stack
+
+- Next.js 15+ (App Router)
+- MongoDB Atlas + Mongoose
+- OpenAI GPT-4o-mini
+- Tailwind CSS

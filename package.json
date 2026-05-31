@@ -1,17 +1,24 @@
 {
-  "name": "language-app-tmp",
+  "name": "language-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import-words": "tsx scripts/import-words.ts",
+    "backfill-gender": "tsx --env-file=.env.local scripts/backfill-gender.ts",
+    "backfill-english-words": "tsx --env-file=.env.local scripts/backfill-english-words.ts"
   },
   "dependencies": {
+    "mongoose": "^9.6.3",
     "next": "16.2.6",
+    "openai": "^6.39.1",
+    "p-limit": "^7.3.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -21,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.22.3",
     "typescript": "^5"
   }
 }
