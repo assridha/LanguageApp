@@ -124,3 +124,42 @@ curl -X POST http://localhost:3000/api/v1/cards/backfill-part-of-speech \
 - MongoDB Atlas + Mongoose
 - OpenAI GPT-4o-mini
 - Tailwind CSS
+
+## Deploy to Heroku
+
+Requires a Heroku account with a web dyno (e.g. Eco/Basic).
+
+### 1. Log in and create the app
+
+```bash
+heroku login
+heroku create your-app-name   # skip if you already have an app
+heroku git:remote -a your-app-name
+```
+
+### 2. Set environment variables
+
+```bash
+heroku config:set \
+  MONGODB_URI="your-atlas-uri" \
+  OPENAI_API_KEY="sk-..." \
+  AGENT_API_KEY="your-random-secret"
+```
+
+Use your existing Atlas URI to keep the current flashcard deck. In MongoDB Atlas → Network Access, allow `0.0.0.0/0` (or Heroku’s outbound IPs) so the dyno can connect.
+
+### 3. Deploy
+
+```bash
+git push heroku main
+heroku open
+```
+
+### 4. Logs and scale
+
+```bash
+heroku logs --tail
+heroku ps:scale web=1
+```
+
+The `Procfile` runs `npm start` (`next start` on `PORT`). Heroku’s long-running dyno avoids the short timeouts that affect serverless hosts, so theme generation and bulk imports should complete normally.
